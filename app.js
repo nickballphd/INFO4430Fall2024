@@ -53,8 +53,91 @@ const authenticated_menu=[
     {label:"Admin Tools",id:"menu2", roles:["manager","owner","administrator"], menu:[
         {label:"Update User",function:"update_user()",panel:"update_user"},
     ]},
+    {label:"Job List",function:"navigate({fn:'show_job_summary'})"},
+
 
 ]
+
+
+async function show_job_summary(params){
+    console.log('in show_job_summary')
+    if(!logged_in()){show_home();return}//in case followed a link after logging out. This prevents the user from using this feature when they are not authenticated.
+
+    //First we hide the menu
+    hide_menu()
+    //This function is set up recursively to build the page for working with inventory. The first time the function is called, the HTML shell is created for displaying either the inventory form for recording the count or the inventory report. Note that this will only be built if there is a "style" property set when the function is called. Once the shell is created, the function is called again to either built the form for recording an inventory count or create the summary report.
+    //building the HTML shell
+    tag("canvas").innerHTML=` 
+        <div class="page">
+            <div id="inventory-title" style="text-align:center"><h2>List of Closing Tasks</h2></div>
+            <div id="inventory-message" style="width:100%"></div>
+            <div id="inventory_panel"  style="width:100%">
+            </div>
+        </div>  
+    `
+    //loading user data. Any user can record an inventory count, so we don't need to check their role at this point. If a user is associated with more than one store and they wish to record an inventory count, they will be prompted to select the store they want to work with.
+
+    const user_data = get_user_data()
+    console.log ("user_data",user_data)
+    //If the user wants to see a summary of the most recent count, we call the "get_inventory_summary" function to populate the page with data from all of the stores that are associated with that user.
+    tag("inventory-message").innerHTML='<i class="fas fa-spinner fa-pulse"></i>'
+    
+    const response=await server_request({
+        mode:"get_jobs",
+    })
+    tag("inventory-message").innerHTML=''
+
+    if(response.status==="success"){//If the data is retrieved successfully, we proceed.
+    
+        //If the style property is set to "summary", we build the report of the most recent count.
+
+        console.log("response", response)
+        //Build the table to display the report. The columns of the table are: Flavor, the stores available to the user, and the total inventory. Since only the owner is given the option to view inventory counts (see the autheticated_user global variable), all stores will be shown in the report.
+        const header=[`
+        <table class="inventory-table">
+            <tr>
+            <th class="sticky">Job</th>
+            <th class="sticky">Status</th>
+            <th class="sticky">Action</th>
+            `]
+
+        header.push("</tr>")
+        const html=[header.join("")]
+        for(const record of response.records){
+            html.push('<tr>')
+            html.push(`<td>${record.fields.Name}</td>`)
+            html.push(`<td>${record.fields.Status}</td>`)
+            html.push(`<td><a class="tools" onclick="update_job('${record.id}','progress')">Mark as In progress</a>|<a class="tools" onclick="update_job('${record.id}','done')">Mark as Done</a></td>`)
+            html.push('</tr>')    
+        }
+
+        html.push("</table>")
+        tag("inventory_panel").innerHTML=html.join("")
+
+
+        
+    }else{
+        //This executes if the data needed to create the form or report is not retrieved successfully. It is essentially an error message to the user.
+        tag("inventory_panel").innerHTML="Unable to get job list: " + response.message + "."        
+    }
+
+}
+
+async function update_job(record_id,status){
+    // To be built during workshop
+    console.log('in update_job')
+    const response = await server_request({
+        mode:"update_jobs", id: record_id, changeTo: status
+    })
+    show_job_summary()
+}
+
+
+
+
+
+
+
 
 
 function show_home(){
